@@ -285,28 +285,27 @@ class Circuit:
 
     def real_power_vector(self):
         real_power = {}
-
         for bus in self.buses.values():
             P_load = sum(load.real_power for load in getattr(bus, "loads", []))
-            P_gen = sum(gen.real_power for gen in getattr(bus, "generators", []))
-
-            total_P = P_gen - P_load
+            P_gen  = sum(gen.real_power  for gen  in getattr(bus, "generators", []))
+            P_bat  = sum(bat.Pset_MW    for bat  in getattr(bus, "batteries", []) if getattr(bat, "enabled", True))
+            total_P = P_gen + P_bat - P_load
             real_power[bus.name] = total_P
-
+            print(f"[DEBUG] {bus.name}: P_gen={P_gen:.3f}, P_bat={P_bat:.3f}, P_load={-P_load:.3f} → P_total={total_P:.3f}")
         return real_power
-
 
     def reactive_power_vector(self):
         """Computes the reactive power vector (Q) from all buses."""
         reactive_power = {}
-
         for bus in self.buses.values():
             Q_load = sum(load.reactive_power for load in getattr(bus, "loads", []))
-            reactive_power[bus.name] = -Q_load  # 🔥 NEGATIVE SIGN for PQ buses
-            print(f"[DEBUG] {bus.name}: Q_load = {Q_load}, total = {-Q_load}")
-
+            Q_bat  = sum(bat.Qset_Mvar    for bat  in getattr(bus, "batteries", []) if getattr(bat, "enabled", True))
+            Q_total = Q_bat - Q_load  # baterías aportan/absorben; cargas consumen
+            reactive_power[bus.name] = Q_total
+            print(f"[DEBUG] {bus.name}: Q_bat={Q_bat:.3f}, Q_load={Q_load:.3f} → Q_total={Q_total:.3f}")
         return reactive_power
 
+    
     def show_network(self):
         """Displays the network configuration."""
         print(f"\nCircuit Name: {self.name}")
@@ -326,6 +325,9 @@ class Circuit:
         for load in self.loads.values():
             print(
                 f"{load.name}: Connected to {load.bus.name}, Real Power: {load.real_power} MW, Reactive Power: {load.reactive_power} Mvar")
+        print("\n--- Batteries ---")
+        for bname, bat in self.batteries.items():
+            print(f"{bname}: Connected to {bat.bus.name}, Pset={bat.Pset_MW} MW, Qset={bat.Qset_Mvar} Mvar, SOC={bat.soc:.3f}")
 
 
     def show_ybus(self):
