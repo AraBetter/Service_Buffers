@@ -131,7 +131,7 @@ def create_circuit_without_faulted_bus(faulted_bus_name):
     
     return circuit
 
-def run_post_fault_analysis(faulted_bus_name):
+def rele(faulted_bus_name):
     """Run power flow analysis on the system without the faulted bus"""
     try:
         # Create circuit without faulted bus
@@ -149,4 +149,4 @@ def run_post_fault_analysis(faulted_bus_name):
 
 
 # Example usage (commented out)
-circuit_post_fault = run_post_fault_analysis("Bus 2")
+circuit_post_fault = rele("Bus 2")

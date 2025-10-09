@@ -1,0 +1,173 @@
+{
+  "timestamp": "2025-10-09T11:07:59.970620",
+  "case": "1",
+  "simulation_data": {
+    "t_r": 42.02610668169648,
+    "da_value": 0.548788320166081,
+    "case_info": "Case 1: Generation Loss",
+    "subcategory": "hot_restart",
+    "fault_bus": "Bus 2",
+    "fault_type": "slg",
+    "mode": "random",
+    "impedance": 0.0,
+    "voltage_results": {
+      "Bus 1": {
+        "magnitude": 1.0,
+        "angle": 0.0
+      },
+      "Bus 2": {
+        "magnitude": 0.9369,
+        "angle": -4.445
+      },
+      "Bus 3": {
+        "magnitude": 0.9205,
+        "angle": -5.4657
+      },
+      "Bus 4": {
+        "magnitude": 0.9298,
+        "angle": -4.7042
+      },
+      "Bus 5": {
+        "magnitude": 0.9267,
+        "angle": -4.8355
+      },
+      "Bus 6": {
+        "magnitude": 0.9397,
+        "angle": -3.9531
+      },
+      "Bus 7": {
+        "magnitude": 1.0,
+        "angle": 2.1493
+      }
+    },
+    "fault_results": {
+      "Bus 1": {
+        "magnitude": 0.5382,
+        "angle": -2.66
+      },
+      "Bus 2": {
+        "magnitude": 0.0,
+        "angle": 180.0
+      },
+      "Bus 3": {
+        "magnitude": 0.0442,
+        "angle": -12.25
+      },
+      "Bus 4": {
+        "magnitude": 0.0429,
+        "angle": -12.25
+      },
+      "Bus 5": {
+        "magnitude": 0.0795,
+        "angle": -12.25
+      },
+      "Bus 6": {
+        "magnitude": 0.1077,
+        "angle": -42.25
+      },
+      "Bus 7": {
+        "magnitude": 0.6699,
+        "angle": -2.79
+      }
+    },
+    "post_fault_results": {
+      "Bus 3": {
+        "magnitude": 0.8073,
+        "angle": -14.0013
+      },
+      "Bus 4": {
+        "magnitude": 0.83,
+        "angle": -12.0965
+      },
+      "Bus 5": {
+        "magnitude": 0.8309,
+        "angle": -12.1798
+      },
+      "Bus 6": {
+        "magnitude": 0.8556,
+        "angle": -10.6015
+      },
+      "Bus 7": {
+        "magnitude": 1.0,
+        "angle": 0.0
+      },
+      "Bus 2": {
+        "magnitude": 0.0,
+        "angle": 0.0
+      },
+      "Bus 1": {
+        "magnitude": 0.0,
+        "angle": 0.0
+      }
+    },
+    "compensated_results": {
+      "Bus 1": {
+        "magnitude": 1.0,
+        "angle": 0.0
+      },
+      "Bus 2": {
+        "magnitude": 0.9369,
+        "angle": -4.445
+      },
+      "Bus 3": {
+        "magnitude": 0.9205,
+        "angle": -5.4657
+      },
+      "Bus 4": {
+        "magnitude": 0.9298,
+        "angle": -4.7042
+      },
+      "Bus 5": {
+        "magnitude": 0.9267,
+        "angle": -4.8355
+      },
+      "Bus 6": {
+        "magnitude": 0.9397,
+        "angle": -3.9531
+      },
+      "Bus 7": {
+        "magnitude": 1.0,
+        "angle": 2.1493
+      }
+    },
+    "charging_results": {
+      "Bus 1": {
+        "magnitude": 1.0,
+        "angle": 0.0
+      },
+      "Bus 2": {
+        "magnitude": 0.9271,
+        "angle": -9.2458
+      },
+      "Bus 3": {
+        "magnitude": 0.9076,
+        "angle": -11.0831
+      },
+      "Bus 4": {
+        "magnitude": 0.9184,
+        "angle": -10.0752
+      },
+      "Bus 5": {
+        "magnitude": 0.9144,
+        "angle": -10.611
+      },
+      "Bus 6": {
+        "magnitude": 0.9292,
+        "angle": -9.6022
+      },
+      "Bus 7": {
+        "magnitude": 1.0,
+        "angle": -3.4847
+      }
+    },
+    "fault_current": {
+      "magnitude": 13.0118,
+      "angle": -85.41
+    }
+  },
+  "metadata": {
+    "t_r": 42.02610668169648,
+    "fault_bus": "Bus 2",
+    "fault_type": "slg"
+  }
+}

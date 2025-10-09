@@ -134,7 +134,7 @@ def create_seven_bus_system_with_batteries():
             Qmax_Mvar=config["S_rated"] * 0.5,
             soc0=0.95,
             bus_name=bus_name,
-            V_ref_pu=1.00,
+            V_ref_pu=0.989,
             Kq_MVAr_per_pu=60.0,
             P_ch_max_MW=config["Pmax"] * 0.5,
             is_active=True,
@@ -165,13 +165,14 @@ def run_battery_simulation(case_id=1, faulted_bus=None, fault_type="slg", fault_
     
     print(f"\n=== SEVEN BUS SYSTEM WITH BATTERIES ===")
     print(f"Batteries installed at: {list(batteries.keys())}")
-    print(f"Random T_r generated: {T_r_hours:.2f} hours")
+    print(f"T_r: {T_r_minutes:.1f} minutes ({T_r_hours:.2f} hours)")
     print(f"Case ID: {case_id}")
+    print(f"Faulted Bus: {faulted_bus}")
     
-    # Time parameters
-    dt_minutes = 10.0  # 10-minute time steps
+    # Time parameters - fixed for immediate response
+    dt_minutes = 1.0  # Always 1-minute steps
     dt_hours = dt_minutes / 60.0
-    total_steps = int((simulation_time_hours * 60) / dt_minutes)
+    total_steps = max(10, int(T_r_minutes))  # At least 10 steps
     
     results = {
         "time_min": [],
@@ -191,29 +192,30 @@ def run_battery_simulation(case_id=1, faulted_bus=None, fault_type="slg", fault_
         results["soc"][bus_name] = []
         results["battery_power"][bus_name] = []
     
-    print(f"\nRunning simulation for {simulation_time_hours:.2f} hours with {dt_minutes}-minute steps...")
+    print(f"\nRunning simulation for {T_r_minutes:.1f} minutes with {dt_minutes}-minute steps...")
+    print(f"Total steps: {total_steps}")
     
-    # Simulation states
-    fault_step = int(total_steps * 0.1)  # Fault at 10% of simulation
-    recovery_step = int(total_steps * 0.9)  # Recovery at 90% of simulation
+    # Simulation states - immediate response
+    fault_step = 1  # Fault at step 1
+    recovery_step = max(3, int(total_steps * 0.8))  # Recovery at 80%
     
     for step in range(total_steps):
         current_time_min = step * dt_minutes
         results["time_min"].append(current_time_min)
         
-        # Determine simulation state
-        if step < fault_step:
+        # Determine simulation state - immediate battery activation
+        if step == 0:
             sim_state = "prefault"
-        elif step < fault_step + 2:
+        elif step == 1:
             sim_state = "fault"
         elif step < recovery_step:
-            sim_state = "discharge"
+            sim_state = "discharge"  # Batteries active from step 2
         else:
             sim_state = "charge"
         
-        # Run power flow analysis
+        # Run power flow analysis - force fault condition during discharge
         try:
-            if faulted_bus and fault_step <= step < recovery_step:
+            if faulted_bus and sim_state in ["fault", "discharge"]:
                 solver = Solver(circuit, analysis_mode='fault', faulted_bus=faulted_bus, 
                               fault_type=fault_type, fault_impedance=fault_impedance)
             else:
@@ -241,18 +243,28 @@ def run_battery_simulation(case_id=1, faulted_bus=None, fault_type="slg", fault_
             Vm_dict = {bus: data["magnitude"] for bus, data in voltages.items()}
             V_complex_dict = {bus: data["magnitude"] * (1+0j) for bus, data in voltages.items()}
             
-            # Program batteries based on case and state
+            # Program batteries based on case and state - individual control
             battery_controller.program_bess(
                 case_id=case_id,
                 sim_state=sim_state,
                 Vm=Vm_dict,
                 system_deficit_MW=50.0 if case_id == 1 else 0.0,
-                delta_demand_MW=30.0 if case_id == 3 else 0.0
+                delta_demand_MW=30.0 if case_id == 3 else 0.0,
+                faulted_bus=faulted_bus  # Pasar el bus específico fallado
             )
             
-            # Apply battery injections to circuit
+            # Apply battery injections - SOLO batería del bus afectado
             for bus_name, battery in batteries.items():
-                P, Q = battery.compute_PQ(V_complex_dict.get(bus_name, 1+0j))
+                is_faulted_bus = (faulted_bus == bus_name)
+                
+                # Solo la batería del bus afectado opera
+                if not is_faulted_bus:
+                    continue
+                    
+                # Calcular P,Q solo para la batería afectada
+                bus_voltage = V_complex_dict.get(bus_name, 1+0j)
+                P, Q = battery.compute_PQ(bus_voltage)
+                
                 if abs(P) > 0.01 or abs(Q) > 0.01:  # Only if significant power
                     # Add battery as generator to modify power flow
                     try:
@@ -266,7 +278,7 @@ def run_battery_simulation(case_id=1, faulted_bus=None, fault_type="slg", fault_
                             f"BESS_{bus_name.replace(' ', '_')}", 
                             bus_name, 
                             per_unit=1.0, 
-                            real_power=P,  # MW injection
+                            real_power=P,  # MW injection específica por batería
                             x1=0.01, x2=0.01, x0=0.01,
                             is_grounded=False, 
                             grounding_impedance_ohm=0.0, 
@@ -291,7 +303,7 @@ def run_battery_simulation(case_id=1, faulted_bus=None, fault_type="slg", fault_
             # Re-run solver with battery injections
             f2 = io.StringIO()
             with redirect_stdout(f2):
-                if faulted_bus and fault_step <= step < recovery_step:
+                if faulted_bus and sim_state in ["fault", "discharge"]:
                     solver2 = Solver(circuit, analysis_mode='fault', faulted_bus=faulted_bus, 
                                    fault_type=fault_type, fault_impedance=fault_impedance)
                 else:
@@ -307,37 +319,40 @@ def run_battery_simulation(case_id=1, faulted_bus=None, fault_type="slg", fault_
                 Vm_dict = {bus: data["magnitude"] for bus, data in voltages.items()}
                 V_complex_dict = {bus: data["magnitude"] * (1+0j) for bus, data in voltages.items()}
             
-            # Update SOC
-            battery_controller.update_soc(dt_hours, V_complex_dict)
+            # Update SOC - solo batería afectada
+            battery_controller.update_soc(dt_hours, V_complex_dict, faulted_bus)
             
-            # Store battery results (after voltage update)
+            # Store battery results - mostrar solo batería activa
             for bus_name, battery in batteries.items():
-                P, Q = battery.compute_PQ(V_complex_dict.get(bus_name, 1+0j))
+                is_faulted_bus = (faulted_bus == bus_name)
+                
+                if is_faulted_bus:
+                    # Batería activa: calcular valores reales
+                    P, Q = battery.compute_PQ(V_complex_dict.get(bus_name, 1+0j))
+                else:
+                    # Baterías inactivas: valores cero
+                    P, Q = 0.0, 0.0
+                    
                 results["battery_states"][bus_name].append(battery.sim_state)
                 results["soc"][bus_name].append(battery.soc)
                 results["battery_power"][bus_name].append({"P": P, "Q": Q})
                 
-                if step % 3 == 0:  # Print every 30 minutes
+                # Print solo para batería afectada o cada cierto intervalo
+                print_interval = 1 if total_steps <= 10 else 2
+                if step % print_interval == 0:
                     V_pu = Vm_dict.get(bus_name, 1.0)
-                    print(f"t={current_time_min:3.0f}min | {bus_name}: V={V_pu:.3f}pu, "
-                          f"State={battery.sim_state}, SOC={battery.soc:.1%}, "
-                          f"P={P:.1f}MW, Q={Q:.1f}Mvar")
+                    status = "[ACTIVE]" if is_faulted_bus else "[INACTIVE]"
+                    if is_faulted_bus or step == 0:  # Mostrar solo batería activa o estado inicial
+                        print(f"t={current_time_min:3.0f}min | {bus_name}{status}: V={V_pu:.3f}pu, "
+                              f"State={battery.sim_state}, SOC={battery.soc:.1%}, "
+                              f"P={P:.1f}MW, Q={Q:.1f}Mvar, Mode={battery.mode}")
         
         except Exception as e:
-            print(f"Error at step {step}: {e}")
-            # Fill with previous values or defaults
-            for bus_name in results["voltages"]:
-                if results["voltages"][bus_name]:
-                    results["voltages"][bus_name].append(results["voltages"][bus_name][-1])
-                    results["angles"][bus_name].append(results["angles"][bus_name][-1] if results["angles"][bus_name] else 0.0)
-                else:
-                    results["voltages"][bus_name].append(1.0)
-                    results["angles"][bus_name].append(0.0)
-            
-            for bus_name in batteries.keys():
-                results["battery_states"][bus_name].append("DISCONNECTED")
-                results["soc"][bus_name].append(batteries[bus_name].soc)
-                results["battery_power"][bus_name].append({"P": 0.0, "Q": 0.0})
+            print(f"\n❌ CRITICAL ERROR at step {step}: {e}")
+            print(f"Error type: {type(e).__name__}")
+            import traceback
+            print(f"Full traceback:\n{traceback.format_exc()}")
+            raise e  # Re-raise the error instead of hiding it
     
     return results, batteries, battery_controller, T_r_hours
 
@@ -348,6 +363,10 @@ def parse_voltage_output(output):
     
     magnitude_section = False
     angle_section = False
+    
+    print(f"\n--- DEBUG: Solver Output ---")
+    print(output[:500] + "..." if len(output) > 500 else output)
+    print(f"--- End Debug ---\n")
     
     for line in lines:
         if "Final Voltage Magnitudes:" in line:
@@ -361,18 +380,50 @@ def parse_voltage_output(output):
             parts = line.strip().split(":")
             if len(parts) == 2:
                 bus_name = parts[0].strip()
-                magnitude = float(parts[1].strip())
-                if bus_name not in voltages:
-                    voltages[bus_name] = {}
-                voltages[bus_name]["magnitude"] = magnitude
+                mag_str = parts[1].strip()
+                if mag_str:  # Only parse if not empty
+                    try:
+                        magnitude = float(mag_str)
+                        if bus_name not in voltages:
+                            voltages[bus_name] = {}
+                        voltages[bus_name]["magnitude"] = magnitude
+                        print(f"Parsed: {bus_name} = {magnitude:.3f} pu")
+                    except ValueError as e:
+                        raise ValueError(f"Error parsing voltage for {bus_name}: '{mag_str}' - {e}")
+                else:
+                    # Default magnitude if empty
+                    if bus_name not in voltages:
+                        voltages[bus_name] = {}
+                    voltages[bus_name]["magnitude"] = 1.0
+                    print(f"Warning: Empty magnitude for {bus_name}, using 1.0 pu")
         elif angle_section and ":" in line:
             parts = line.strip().split(":")
             if len(parts) == 2:
                 bus_name = parts[0].strip()
-                angle = float(parts[1].strip())
-                if bus_name not in voltages:
-                    voltages[bus_name] = {}
-                voltages[bus_name]["angle"] = angle
+                angle_str = parts[1].strip()
+                if angle_str:  # Only parse if not empty
+                    try:
+                        angle = float(angle_str)
+                        if bus_name not in voltages:
+                            voltages[bus_name] = {}
+                        voltages[bus_name]["angle"] = angle
+                    except ValueError as e:
+                        raise ValueError(f"Error parsing angle for {bus_name}: '{angle_str}' - {e}")
+                else:
+                    # Default angle if empty
+                    if bus_name not in voltages:
+                        voltages[bus_name] = {}
+                    voltages[bus_name]["angle"] = 0.0
+                    print(f"Warning: Empty angle for {bus_name}, using 0.0")
+    
+    if not voltages:
+        print(f"WARNING: No voltages found in solver output, using defaults")
+        print(f"Solver output was: '{output[:200]}...'")
+        # Return default voltages for all buses
+        default_voltages = {}
+        for i in range(1, 8):
+            default_voltages[f"Bus {i}"] = {"magnitude": 1.0, "angle": 0.0}
+        return default_voltages
     
     return voltages
 
@@ -388,8 +439,8 @@ def print_final_results(results, batteries, T_r_hours):
             final_angle = results["angles"][bus_name][-1]
             print(f"{bus_name}: {final_V:.3f} ∠ {final_angle:.1f}° pu")
     
-    # Final battery states
-    print("\nFinal Battery States:")
+    # Final battery states - individual analysis
+    print("\nFinal Battery States (Individual Analysis):")
     for bus_name in batteries.keys():
         battery = batteries[bus_name]
         if results["soc"][bus_name] and results["battery_power"][bus_name]:
@@ -397,17 +448,34 @@ def print_final_results(results, batteries, T_r_hours):
             final_state = results["battery_states"][bus_name][-1]
             final_power = results["battery_power"][bus_name][-1]
             discharge_time = (battery.soc * battery.E_rated) / max(battery.Pmax, 1) if battery.Pmax > 0 else 0
-            print(f"{bus_name}: SOC={final_soc:.1%}, State={final_state}, "
-                  f"Discharge Time={discharge_time:.1f}h, P={final_power['P']:.1f}MW, Q={final_power['Q']:.1f}Mvar")
+            
+            # Análisis individual por batería
+            initial_soc = results["soc"][bus_name][0] if results["soc"][bus_name] else 0.95
+            soc_change = final_soc - initial_soc
+            energy_used = abs(soc_change) * battery.E_rated
+            
+            print(f"{bus_name}: SOC={final_soc:.1%} (Δ{soc_change:+.1%}), State={final_state}, "
+                  f"Energy Used={energy_used:.1f}MWh, Remaining Time={discharge_time:.1f}h, "
+                  f"P={final_power['P']:.1f}MW, Q={final_power['Q']:.1f}Mvar, Mode={battery.mode}")
     
-    # Battery discharge percentages during T_r
-    print("\nBattery Discharge Summary:")
+    # Battery discharge summary - individual performance
+    print("\nIndividual Battery Performance Summary:")
     for bus_name in batteries.keys():
         if results["soc"][bus_name]:
+            battery = batteries[bus_name]
             initial_soc = results["soc"][bus_name][0] if results["soc"][bus_name] else 0.95
             final_soc = results["soc"][bus_name][-1]
             discharge_percent = ((initial_soc - final_soc) / initial_soc) * 100 if initial_soc > 0 else 0
-            print(f"{bus_name}: Discharged {discharge_percent:.1f}% over {T_r_hours:.2f}h")
+            
+            # Calcular energía total suministrada
+            total_energy_supplied = (initial_soc - final_soc) * battery.E_rated
+            avg_power = total_energy_supplied / T_r_hours if T_r_hours > 0 else 0
+            
+            # Eficiencia de utilización
+            utilization = (avg_power / battery.Pmax) * 100 if battery.Pmax > 0 else 0
+            
+            print(f"{bus_name}: Discharged {discharge_percent:.1f}% ({total_energy_supplied:.1f}MWh) "
+                  f"over {T_r_hours:.2f}h, Avg Power={avg_power:.1f}MW ({utilization:.1f}% utilization)")
 
 # Example usage
 if __name__ == "__main__":

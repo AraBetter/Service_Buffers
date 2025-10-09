@@ -68,6 +68,10 @@ class Battery:
         self.sim_state = sim_state
         self.Pref_MW = float(Pref_MW)
         self.mode = mode
+        
+        # Configuración individual por bus
+        self.local_load_MW = self._get_local_load()
+        self.individual_response = True  # Flag para control individual
 
         # Setpoints actuales (MW / Mvar)
         self.Pset_MW: float = 0.0
@@ -138,13 +142,25 @@ class Battery:
 
     def soc_update_discharge(self, dt_h: float, P_MW: float):
         if P_MW > 0.0:
-            dSOC = (P_MW * dt_h) / (self.E_rated * self.eta_dis)
+            # Aplicar eficiencia individual y límites por batería
+            actual_power = min(P_MW, self.Pmax * max(0, (self.soc - 0.1) / 0.85))
+            dSOC = (actual_power * dt_h) / (self.E_rated * self.eta_dis)
             self.soc = max(self.SOC_min, self.soc - dSOC)
+            
+            # Protección individual por SOC crítico
+            if self.soc <= 0.12:
+                self.is_active = False  # Desconectar batería individual
 
     def soc_update_charge(self, dt_h: float, P_MW: float):
         if P_MW < 0.0:
-            dSOC = (abs(P_MW) * dt_h) / self.E_rated * self.eta_ch
+            # Carga individual con eficiencia específica
+            charge_limit = min(abs(P_MW), self.P_ch_max_MW * (0.95 - self.soc) / 0.2)
+            dSOC = (charge_limit * dt_h) / self.E_rated * self.eta_ch
             self.soc = min(self.SOC_max, self.soc + dSOC)
+            
+            # Reactivar batería si se ha cargado suficiente
+            if self.soc >= 0.15 and not self.is_active:
+                self.is_active = True
 
     # --------- Hook sencillo Volt/Var (opcional) ----------
     def compute_PQ(self, V_bus: complex) -> tuple[float, float]:
@@ -152,18 +168,56 @@ class Battery:
             return (0.0, 0.0)
         Vm = abs(V_bus)
 
-        # P por estado
+        # P por estado con lógica individual
         if self.sim_state == "discharge":
-            P = max(self.Pmin, min(self.Pref_MW, self.Pmax))
+            # Aplicar límites por SOC individual
+            soc_factor = max(0.1, (self.soc - 0.1) / 0.85)  # Factor de disponibilidad por SOC
+            available_power = self.Pmax * soc_factor
+            
+            if self.mode == "PV":
+                # Modo PV: potencia fija para soportar carga local
+                P = min(available_power, self.Pref_MW)
+            else:  # DROOP
+                # Modo DROOP: respuesta proporcional al déficit de voltaje
+                voltage_deficit = max(0, self.V_ref_pu - Vm)
+                droop_response = voltage_deficit * available_power * 2.0
+                P = min(available_power, max(self.Pmin, droop_response))
+                
         elif self.sim_state == "charge":
-            P = -min(self.P_ch_max_MW, self.Pmax)
+            # Carga individual basada en SOC
+            soc_deficit = max(0, 0.95 - self.soc)
+            charge_factor = min(1.0, soc_deficit / 0.2)  # Más carga si SOC es menor
+            P = -min(self.P_ch_max_MW * charge_factor, self.Pmax)
         else:
             P = 0.0
 
-        # Q por droop
+        # Q por droop individual
         Q = self.Kq_MVAr_per_pu * (self.V_ref_pu - Vm)
         Q = max(self.Qmin, min(self.Qmax, Q))
         return (P, Q)
+    
+    def _get_local_load(self) -> float:
+        """Obtiene la carga local del bus de esta batería"""
+        load_map = {
+            "Bus 3": 110.0,  # Load 3: 110 MW
+            "Bus 4": 100.0,  # Load 4: 100 MW  
+            "Bus 5": 100.0   # Load 5: 100 MW
+        }
+        return load_map.get(self.bus_name, 0.0)
+    
+    def get_individual_status(self) -> dict:
+        """Retorna estado individual detallado de la batería"""
+        return {
+            "bus": self.bus_name,
+            "soc": self.soc,
+            "available_energy_MWh": self.soc * self.E_rated,
+            "available_power_MW": self.Pmax * max(0, (self.soc - 0.1) / 0.85),
+            "local_load_MW": self.local_load_MW,
+            "can_support_local": (self.soc * self.E_rated) > (self.local_load_MW * 0.5),
+            "mode": self.mode,
+            "state": self.sim_state,
+            "is_active": self.is_active
+        }
 
     def set_reactive_by_volt_var(self, Vmag_pu: float, Vref: float = 1.0, slope_Mvar_per_pu: float = 50.0):
         Q_cmd = -slope_Mvar_per_pu * (Vmag_pu - Vref)

@@ -1,0 +1,170 @@
+{
+  "timestamp": "2025-10-07T15:22:20.042010",
+  "case": "3",
+  "simulation_data": {
+    "t_r": 19.15993427455141,
+    "da_value": 0.9903478476721536,
+    "case_info": "Case 3: Communication Loss",
+    "subcategory": "transient",
+    "fault_bus": "Bus 1",
+    "fault_type": "comm",
+    "mode": "random",
+    "impedance": 0.0,
+    "voltage_results": {
+      "Bus 1": {
+        "magnitude": 1.0,
+        "angle": 0.0
+      },
+      "Bus 2": {
+        "magnitude": 0.9369,
+        "angle": -4.445
+      },
+      "Bus 3": {
+        "magnitude": 0.9205,
+        "angle": -5.4657
+      },
+      "Bus 4": {
+        "magnitude": 0.9298,
+        "angle": -4.7042
+      },
+      "Bus 5": {
+        "magnitude": 0.9267,
+        "angle": -4.8355
+      },
+      "Bus 6": {
+        "magnitude": 0.9397,
+        "angle": -3.9531
+      },
+      "Bus 7": {
+        "magnitude": 1.0,
+        "angle": 2.1493
+      }
+    },
+    "fault_results": {
+      "Bus 1": {
+        "magnitude": 1.0,
+        "angle": 0.0
+      },
+      "Bus 2": {
+        "magnitude": 0.9369,
+        "angle": -4.445
+      },
+      "Bus 3": {
+        "magnitude": 0.9205,
+        "angle": -5.4657
+      },
+      "Bus 4": {
+        "magnitude": 0.9298,
+        "angle": -4.7042
+      },
+      "Bus 5": {
+        "magnitude": 0.9267,
+        "angle": -4.8355
+      },
+      "Bus 6": {
+        "magnitude": 0.9397,
+        "angle": -3.9531
+      },
+      "Bus 7": {
+        "magnitude": 1.0,
+        "angle": 2.1493
+      }
+    },
+    "post_fault_results": {
+      "Bus 1": {
+        "magnitude": 0.98,
+        "angle": -0.5
+      },
+      "Bus 2": {
+        "magnitude": 0.9181619999999999,
+        "angle": -4.945
+      },
+      "Bus 3": {
+        "magnitude": 0.90209,
+        "angle": -5.9657
+      },
+      "Bus 4": {
+        "magnitude": 0.8525882948070473,
+        "angle": -6.7042
+      },
+      "Bus 5": {
+        "magnitude": 0.9081659999999999,
+        "angle": -5.3355
+      },
+      "Bus 6": {
+        "magnitude": 0.920906,
+        "angle": -4.4531
+      },
+      "Bus 7": {
+        "magnitude": 0.98,
+        "angle": 1.6493000000000002
+      }
+    },
+    "compensated_results": {
+      "Bus 1": {
+        "magnitude": 1.029,
+        "angle": 0.5
+      },
+      "Bus 2": {
+        "magnitude": 0.9640700999999999,
+        "angle": -3.9450000000000003
+      },
+      "Bus 3": {
+        "magnitude": 0.9471944999999999,
+        "angle": -4.9657
+      },
+      "Bus 4": {
+        "magnitude": 0.8952177095473998,
+        "angle": -5.7042
+      },
+      "Bus 5": {
+        "magnitude": 0.9535743,
+        "angle": -4.3355
+      },
+      "Bus 6": {
+        "magnitude": 0.9669513000000001,
+        "angle": -3.4531
+      },
+      "Bus 7": {
+        "magnitude": 1.029,
+        "angle": 2.6493
+      }
+    },
+    "charging_results": {
+      "Bus 1": {
+        "magnitude": 1.0,
+        "angle": 0.0
+      },
+      "Bus 2": {
+        "magnitude": 0.9271,
+        "angle": -9.2458
+      },
+      "Bus 3": {
+        "magnitude": 0.9076,
+        "angle": -11.0831
+      },
+      "Bus 4": {
+        "magnitude": 0.9184,
+        "angle": -10.0752
+      },
+      "Bus 5": {
+        "magnitude": 0.9144,
+        "angle": -10.611
+      },
+      "Bus 6": {
+        "magnitude": 0.9292,
+        "angle": -9.6022
+      },
+      "Bus 7": {
+        "magnitude": 1.0,
+        "angle": -3.4847
+      }
+    },
+    "fault_current": null
+  },
+  "metadata": {
+    "t_r": 19.15993427455141,
+    "fault_bus": "Bus 1",
+    "fault_type": "comm"
+  }
+}

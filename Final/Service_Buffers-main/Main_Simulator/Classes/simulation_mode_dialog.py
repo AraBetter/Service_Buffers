@@ -6,6 +6,15 @@ from PySide6.QtGui import QFont, QColor, QBrush
 from PySide6.QtCore import Qt
 import random
 
+# Import global T_r configuration
+try:
+    from t_r_config import get_global_t_r, set_global_t_r, reset_global_t_r
+except ImportError:
+    # Fallback functions if module not available
+    get_global_t_r = lambda: random.uniform(6, 600)
+    set_global_t_r = lambda x: None
+    reset_global_t_r = lambda: random.uniform(6, 600)
+
 
 class SimulationModeDialog(QDialog):
     def __init__(self, parent=None):
@@ -133,10 +142,22 @@ class SimulationModeDialog(QDialog):
         case2_layout.addWidget(self.load_combo)
         case2_group.setLayout(case2_layout)
         
+        # Case 3: Communication Loss
+        case3_group = QGroupBox("Case 3: Communication Loss")
+        case3_layout = QVBoxLayout()
+        self.comm_radio = QRadioButton("Select Communication Bus")
+        self.comm_combo = QComboBox()
+        self.comm_combo.addItems(["Bus 1", "Bus 7"])
+        self.comm_combo.setCurrentText("Bus 1")
+        case3_layout.addWidget(self.comm_radio)
+        case3_layout.addWidget(self.comm_combo)
+        case3_group.setLayout(case3_layout)
+        
         # Group radio buttons
         self.case_group = QButtonGroup()
         self.case_group.addButton(self.gen_radio, 0)
         self.case_group.addButton(self.load_radio, 1)
+        self.case_group.addButton(self.comm_radio, 2)
         self.gen_radio.setChecked(True)  # Default selection
         
         # Fault Impedance (always user input)
@@ -149,6 +170,7 @@ class SimulationModeDialog(QDialog):
         
         params_layout.addWidget(case1_group)
         params_layout.addWidget(case2_group)
+        params_layout.addWidget(case3_group)
         params_layout.addLayout(impedance_layout)
         
         self.params_group.setLayout(params_layout)
@@ -157,7 +179,7 @@ class SimulationModeDialog(QDialog):
         # Random Mode Info
         self.info_group = QGroupBox("Random Mode Distribution")
         info_layout = QVBoxLayout()
-        info_label = QLabel("• Generation Buses: 50% (Bus 1, 2, 6, 7)\n• Load Buses: 50% (Bus 3, 4, 5)\n• All faults are SLG type")
+        info_label = QLabel("• Case 1 (Generation Loss): 15% (Bus 1, 2, 6, 7) - SLG\n• Case 2 (Load Buses Loss): 60% (Bus 3, 4, 5) - SLG\n• Case 3 (Communication Loss): 25% (Bus 1, 7) - COMM")
         info_label.setStyleSheet("color: #cccccc; font-size: 12px;")
         info_layout.addWidget(info_label)
         self.info_group.setLayout(info_layout)
@@ -197,8 +219,12 @@ class SimulationModeDialog(QDialog):
     def accept_simulation(self):
         # Get fault impedance (always user input)
         try:
-            self.fault_impedance = float(self.impedance_input.text())
-        except ValueError:
+            impedance_text = self.impedance_input.text().strip()
+            if impedance_text:
+                self.fault_impedance = float(impedance_text)
+            else:
+                self.fault_impedance = 0.0
+        except (ValueError, AttributeError):
             self.fault_impedance = 0.0
         
         if self.random_radio.isChecked():
@@ -209,18 +235,28 @@ class SimulationModeDialog(QDialog):
             # Get selected bus from appropriate case
             if self.gen_radio.isChecked():
                 self.selected_bus = self.gen_combo.currentText()
-            else:
+                self.selected_fault_type = "slg"
+                self.comm_fault_type = None
+            elif self.load_radio.isChecked():
                 self.selected_bus = self.load_combo.currentText()
-            self.selected_fault_type = "slg"  # Always SLG for both cases
+                self.selected_fault_type = "slg"
+                self.comm_fault_type = None
+            else:  # Communication fault
+                self.selected_bus = self.comm_combo.currentText()
+                self.selected_fault_type = "comm"
+                self.comm_fault_type = "Communication Loss"
         
         self.accept()
     
     def generate_random_fault(self):
         """Generate random fault based on distribution percentages"""
-        # 50% Generation buses, 50% Load buses
+        # Generate T_r first to determine case probabilities
+        reset_global_t_r()
+        
+        # 15% Case 1 (Generation), 60% Case 2 (Load), 25% Case 3 (Communication)
         fault_category = random.choices(
-            ["generation", "load"], 
-            weights=[50.0, 50.0]
+            ["generation", "load", "communication"], 
+            weights=[15.0, 60.0, 25.0]
         )[0]
         
         if fault_category == "generation":
@@ -228,11 +264,16 @@ class SimulationModeDialog(QDialog):
             self.selected_bus = random.choice(["Bus 1", "Bus 2", "Bus 6", "Bus 7"])
             self.selected_fault_type = "slg"
             self.comm_fault_type = None
-        else:
+        elif fault_category == "load":
             # Random load bus fault
             self.selected_bus = random.choice(["Bus 3", "Bus 4", "Bus 5"])
             self.selected_fault_type = "slg"
             self.comm_fault_type = None
+        else:
+            # Random communication fault
+            self.selected_bus = random.choice(["Bus 1", "Bus 7"])
+            self.selected_fault_type = "comm"
+            self.comm_fault_type = "Communication Loss"
     
     def get_simulation_parameters(self):
         """Return the selected simulation parameters"""
